@@ -28,7 +28,7 @@ model.geometry = openmc.Geometry([cell1, cell2, cell3])
 
 # Define source
 source_energy = 2.0e6
-model.settings.source = openmc.Source(
+model.settings.source = openmc.IndependentSource(
     space=openmc.stats.Point(),
     energy=openmc.stats.Discrete([source_energy], [1.0])
 )
@@ -41,16 +41,17 @@ model.settings.photon_transport = True
 
 
 # Define tallies
+cell_filter = openmc.CellFilter([cell1, cell2, cell3])
 neutron_filter = openmc.ParticleFilter(['neutron'])
 neutron_energy = openmc.EnergyFilter(neutron_groups)
 neutron_flux_tally = openmc.Tally(name='neutron flux')
-neutron_flux_tally.filters = [neutron_filter, neutron_energy]
+neutron_flux_tally.filters = [neutron_filter, cell_filter, neutron_energy]
 neutron_flux_tally.scores = ['flux']
 
 photon_filter = openmc.ParticleFilter(['photon'])
 photon_energy = openmc.EnergyFilter(photon_groups)
 photon_flux_tally = openmc.Tally(name='photon flux')
-photon_flux_tally.filters = [photon_filter, photon_energy]
+photon_flux_tally.filters = [photon_filter, cell_filter, photon_energy]
 photon_flux_tally.scores = ['flux']
 
 model.tallies = [neutron_flux_tally, photon_flux_tally]
@@ -83,14 +84,14 @@ for nuclide, (mf, mt) in reactions:
 for nuclide, sigma in xs.items():
     si_tally = openmc.Tally(name=f'Spectral index {nuclide}')
     multiplier = openmc.EnergyFunctionFilter(sigma.x, sigma.y)
-    si_tally.filters = [neutron_filter, multiplier, neutron_energy]
+    si_tally.filters = [neutron_filter, multiplier, cell_filter, neutron_energy]
     si_tally.scores = ['flux']
     model.tallies.append(si_tally)
 
 # Create heating tally
 heating_tally = openmc.Tally(name='heating')
 all_particles = openmc.ParticleFilter(['neutron', 'photon', 'electron', 'positron'])
-heating_tally.filters = [all_particles, neutron_energy]
+heating_tally.filters = [all_particles, cell_filter, neutron_energy]
 heating_tally.scores = ['heating']
 model.tallies.append(heating_tally)
 
