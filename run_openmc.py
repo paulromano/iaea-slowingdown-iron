@@ -5,6 +5,14 @@ import endf
 import numpy as np
 import openmc
 
+
+cross_sections = [
+    ('endfb80', '/lcrc/project/OpenMCValidation/data/hdf5/endfb-viii.0-hdf5/cross_sections.xml'),
+    ('jeff33', '/lcrc/project/OpenMCValidation/data/hdf5/jeff-3.3-hdf5/cross_sections.xml'),
+    ('tendl2021', '/lcrc/project/OpenMCValidation/data/hdf5/tendl-2021-hdf5/cross_sections.xml'),
+    ('jendl5', '/lcrc/project/OpenMCValidation/data/hdf5/jendl-5.0-hdf5/cross_sections_e8photon.xml'),
+]
+
 # Iron composition: 100% Fe56, split by isotopes
 # Source energy: 14 MeV, 2 MeV
 
@@ -35,8 +43,8 @@ model.settings.source = openmc.IndependentSource(
 
 # Define other settings
 model.settings.run_mode = 'fixed source'
-model.settings.particles = 10_000
-model.settings.batches = 10
+model.settings.particles = 10_000_000
+model.settings.batches = 100
 model.settings.photon_transport = True
 
 
@@ -107,25 +115,30 @@ photon_current.filters = [photon_filter, surface_filter, photon_energy]
 photon_current.scores = ['current']
 model.tallies.append(photon_current)
 
-# Case 1: Fe56, E=2.0 MeV
-sp_path = model.run()
-sp_path.rename('statepoint_fe56_2MeV.h5')
+run_kwargs = {
+    'mpi_args': ['mpiexec']
+}
 
-# Case 2: Fe56, E=14.0 MeV
-model.settings.source[0].energy.x[0] = 14.0e6
-sp_path = model.run()
-sp_path.rename('statepoint_fe56_14MeV.h5')
+for label, xs_file in cross_sections:
+    # Set cross sections
+    openmc.config['cross_sections'] = xs_file
 
-# Case 3: Fe, E=14.0 MeV
-iron.nuclides.clear()
-iron.add_nuclide('Fe54', 0.05845)
-iron.add_nuclide('Fe56', 0.91754)
-iron.add_nuclide('Fe57', 0.02119)
-iron.add_nuclide('Fe58', 0.00282)
-sp_path = model.run()
-sp_path.rename('statepoint_fe_14MeV.h5')
+    # Case 1: Fe56, E=2.0 MeV
+    sp_path = model.run(cwd=f'fe56_2MeV_{label}', **run_kwargs)
 
-# Case 4: Fe, E=2.0 MeV
-model.settings.source[0].energy.x[0] = 2.0e6
-sp_path = model.run()
-sp_path.rename('statepoint_fe_2MeV.h5')
+    # Case 2: Fe56, E=14.0 MeV
+    model.settings.source[0].energy.x[0] = 14.0e6
+    sp_path = model.run(cwd=f'fe56_14MeV_{label}', **run_kwargs)
+
+    # Case 3: Fe, E=14.0 MeV
+    iron.nuclides.clear()
+    iron.add_nuclide('Fe54', 0.05845)
+    iron.add_nuclide('Fe56', 0.91754)
+    iron.add_nuclide('Fe57', 0.02119)
+    iron.add_nuclide('Fe58', 0.00282)
+    sp_path = model.run(cwd=f'fe_14MeV_{label}', **run_kwargs)
+
+    # Case 4: Fe, E=2.0 MeV
+    model.settings.source[0].energy.x[0] = 2.0e6
+    sp_path = model.run(cwd=f'fe_2MeV_{label}', **run_kwargs)
+
